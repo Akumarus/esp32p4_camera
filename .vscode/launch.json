@@ -1,0 +1,22 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "ESP32-P4 J-Link",
+            "type": "cppdbg",
+            "request": "launch",
+            "cwd": "${workspaceFolder}",
+            "program": "${workspaceFolder}/build/video_lcd_display.elf",
+            "miDebuggerPath": "/home/igor/.espressif/tools/riscv32-esp-elf-gdb/16.3_20250913/riscv32-esp-elf-gdb/bin/riscv32-esp-elf-gdb",
+            "miDebuggerServerAddress": "localhost:3333",
+            "setupCommands": [
+                {
+                    "description": "Reset and halt",
+                    "text": "monitor reset halt",
+                    "ignoreFailures": false
+                }
+            ],
+            "stopAtEntry": false
+        }
+    ]
+}

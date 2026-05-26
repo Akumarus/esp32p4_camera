@@ -1,0 +1,23 @@
+{
+  "idf.currentSetup": "/home/igor/.espressif/v5.4.4/esp-idf",
+  "idf.openOcdConfigs": [
+    "board/esp32p4-builtin.cfg"
+  ],
+  "idf.customExtraVars": {
+    "IDF_TARGET": "esp32p4"
+  },
+  "C_Cpp.intelliSenseEngine": "default",
+  "C_Cpp.errorSquiggles": "enabled",
+  "clangd.path": "/home/igor/.espressif/tools/esp-clang/esp-18.1.2_20240912/esp-clang/bin/clangd",
+  "clangd.arguments": [
+    "--background-index",
+    "--query-driver=**",
+    "--compile-commands-dir=/home/igor/Загрузки/ESP32-P4-ETH-Demos/ESP-IDF/12_video_lcd_display/build"
+  ],
+  "idf.flashType": "UART",
+  "idf.port": "/dev/ttyACM0",
+  "python-envs.defaultEnvManager": "ms-python.python:conda",
+  "python-envs.defaultPackageManager": "ms-python.python:conda"
+
+  
+}

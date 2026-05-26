@@ -1,0 +1,14 @@
+/build
+managed_components
+
+#Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# SDKConfigs
+sdkconfig
+sdkconfig.old
+
+

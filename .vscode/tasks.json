@@ -1,0 +1,14 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "start-openocd",
+			"type": "shell",
+			"command": "openocd -f interface/jlink.cfg -c 'transport select jtag' -c 'adapter speed 5000' -c 'set ESP_RTOS hwthread' -f target/esp32p4.cfg",
+			"isBackground": true,
+			"group": "build",
+			"problemMatcher": [],
+			"detail": "CMake template build task"
+		}
+	]
+}

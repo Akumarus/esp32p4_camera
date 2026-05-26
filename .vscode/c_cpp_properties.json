@@ -1,0 +1,31 @@
+{
+  "configurations": [
+    {
+      "name": "ESP-IDF",
+      "includePath": [
+        "${workspaceFolder}/**",
+        "${workspaceFolder}/main/**",
+        "${env:IDF_PATH}/components/freertos/FreeRTOS-Kernel/include",
+        "${env:IDF_PATH}/components/esp_hw_support/include",
+        "${env:IDF_PATH}/components/esp_system/include",
+        "${env:IDF_PATH}/components/esp_common/include",
+        "${env:IDF_PATH}/components/riscv/include",
+        "${env:IDF_PATH}/components/newlib/platform_include",
+        "${env:IDF_PATH}/components/soc/include",
+        "${env:IDF_PATH}/components/hal/include",
+        "${env:IDF_PATH}/components/driver/deprecated",
+        "${env:IDF_PATH}/components/spi_flash/include"
+      ],
+      "defines": [
+        "CONFIG_IDF_TARGET_ESP32P4",
+        "ESP_PLATFORM",
+        "IDF_VER=\"v5.4.4\""
+      ],
+      "cStandard": "c11",
+      "cppStandard": "c++17",
+      "compileCommands": "${workspaceFolder}/build/compile_commands.json",
+      "compilerPath": "/home/igor/.espressif/tools/riscv32-esp-elf/esp-14.2.0_20260121/riscv32-esp-elf/bin/riscv32-esp-elf-gcc"
+    }
+  ],
+  "version": 4
+}
