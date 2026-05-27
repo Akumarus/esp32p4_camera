@@ -21,6 +21,84 @@ static uint32_t img_height = 0;
 static size_t img_size = 0;
 static size_t s_cache_line_size = 0;
 
+static void save_bmp_rgb888(const char *path,
+                            const uint8_t *data,
+                            int width,
+                            int height)
+{
+    FILE *f = fopen(path, "wb");
+    if (!f) return;
+
+    int row_size = (width * 3 + 3) & ~3;
+    int pixel_data_size = row_size * height;
+    int file_size = 54 + pixel_data_size;
+
+    uint8_t header[54] = {
+        'B','M',
+        file_size, file_size >> 8, file_size >> 16, file_size >> 24,
+        0,0,0,0,
+        54,0,0,0,
+
+        40,0,0,0,
+        width, width >> 8, width >> 16, width >> 24,
+        height, height >> 8, height >> 16, height >> 24,
+
+        1,0,
+        24,0,
+
+        0,0,0,0,
+        pixel_data_size,
+        pixel_data_size >> 8,
+        pixel_data_size >> 16,
+        pixel_data_size >> 24,
+
+        0x13,0x0B,0,0,
+        0x13,0x0B,0,0,
+        0,0,0,0,
+        0,0,0,0
+    };
+
+    fwrite(header, 1, 54, f);
+
+    const uint16_t *pix = (const uint16_t *)data;
+
+    uint8_t *row = malloc(row_size);
+
+    for (int y = height - 1; y >= 0; y--) {
+
+        int idx = 0;
+
+        for (int x = 0; x < width; x++) {
+
+            uint16_t p = pix[y * width + x];
+
+            // uint8_t b = ((p >> 11) & 0x1F) << 3;
+            // uint8_t g = ((p >> 5) & 0x3F) << 2;
+            // uint8_t r = (p & 0x1F) << 3;
+
+            // row[idx++] = b;
+            // row[idx++] = g;
+            // row[idx++] = r;
+
+            uint8_t r = ((p >> 11) & 0x1F) << 3;
+uint8_t g = ((p >> 5) & 0x3F) << 2;
+uint8_t b = (p & 0x1F) << 3;
+
+row[idx++] = b;
+row[idx++] = g;
+row[idx++] = r;
+        }
+
+        while (idx < row_size)
+            row[idx++] = 0;
+
+        fwrite(row, 1, row_size, f);
+    }
+
+    free(row);
+    fclose(f);
+}
+
 static void save_raw_image(const uint8_t *data, size_t size, uint32_t width, uint32_t height)
 {
     char path[64];
@@ -48,10 +126,21 @@ static void frame_callback(uint8_t *camera_buf, uint8_t buf_idx,
                           uint32_t width, uint32_t height, 
                           size_t buf_len, void *user_data) 
 {
+    static int frame_count = 0;
+
+    frame_count++;
+
+    if (frame_count < 30) {
+        return;
+    }
+
     if (!frame_ready) {
         raw_frame = malloc(buf_len);
         if (raw_frame) {
             memcpy(raw_frame, camera_buf, buf_len);
+            esp_cache_msync(camera_buf,
+                buf_len,
+                ESP_CACHE_MSYNC_FLAG_DIR_M2C);
             img_width = width;
             img_height = height;
             img_size = buf_len;
@@ -114,7 +203,7 @@ void app_main(void)
     
     // Wait for frame (with timeout)
     int timeout = 0;
-    while (!frame_ready && timeout < 50) {
+    while (!frame_ready && timeout < 500) {
         vTaskDelay(pdMS_TO_TICKS(100));
         timeout++;
     }
@@ -127,11 +216,23 @@ void app_main(void)
     
     // Save raw image
     if (raw_frame) {
+        save_bmp_rgb888("/sdcard/images/test.bmp",
+                raw_frame,
+                img_width,
+                img_height);
         ESP_LOGI("MAIN", "Saving raw image, size=%u bytes", (unsigned int)img_size);
         save_raw_image(raw_frame, img_size, img_width, img_height);
         ESP_LOGI("MAIN", "Converting Raw --> JPEG: %u bytes", (unsigned int)img_size);
+
         size_t jpeg_size = 0;
-        ret = app_jpeg_raw2jpeg(raw_frame, img_size, img_width, img_height, &jpeg_size);
+
+        ret = app_jpeg_raw2jpeg(
+                raw_frame,
+                img_size,
+                img_width,
+                img_height,
+                &jpeg_size);
+
         if (jpeg_size > 0 && ret == ESP_OK) {
             ESP_LOGI("MAIN", "JPEG size: %u bytes", (unsigned int)jpeg_size);
         } else {
