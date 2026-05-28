@@ -1,12 +1,15 @@
+#include <stdio.h>
+#include <string.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "driver/i2c_master.h"
+#include "driver/uart.h"
+#include "driver/gpio.h"
 #include "app_sdcard.h"
 #include "app_video.h"
 #include "app_jpeg.h"
 #include "app_lcd.h"
 #include <stdbool.h>
-#include <string.h>
 #include <errno.h>
 #include <sys/ioctl.h>
 #include <linux/videodev2.h>
@@ -14,12 +17,196 @@
 #include "driver/ppa.h"
 #include "esp_cache.h"
 #include "esp_private/esp_cache_private.h"
+
+static const char *TAG = "MAIN";
+
+// UART настройки для команд
+#define UART_CMD_NUM     UART_NUM_1
+#define UART_CMD_TX      GPIO_NUM_14
+#define UART_CMD_RX      GPIO_NUM_15
+#define UART_CMD_BAUD    5000000
+
 static uint8_t *raw_frame = NULL;
 static bool frame_ready = false;
 static uint32_t img_width = 0;
 static uint32_t img_height = 0;
 static size_t img_size = 0;
 static size_t s_cache_line_size = 0;
+static bool send_bmp_requested = false;
+
+// Конвертация RGB565 в BMP
+static uint8_t* convert_rgb565_to_bmp(const uint8_t *rgb565_data, 
+                                       int width, int height, 
+                                       size_t *bmp_size)
+{
+    int row_size = (width * 3 + 3) & ~3;
+    int pixel_data_size = row_size * height;
+    *bmp_size = 54 + pixel_data_size;
+    
+    uint8_t *bmp = malloc(*bmp_size);
+    if (!bmp) {
+        ESP_LOGE(TAG, "BMP malloc failed");
+        return NULL;
+    }
+    
+    // BMP Header
+    uint8_t header[54] = {0};
+    header[0] = 'B';
+    header[1] = 'M';
+    header[10] = 54;
+    header[14] = 40;
+    header[26] = 1;
+    header[28] = 24;
+    header[38] = 0x13;
+    header[39] = 0x0B;
+    header[42] = 0x13;
+    header[43] = 0x0B;
+    
+    // File size
+    *((uint32_t*)(header + 2)) = *bmp_size;
+    // Width
+    *((uint32_t*)(header + 18)) = width;
+    // Height
+    *((uint32_t*)(header + 22)) = height;
+    // Image size
+    *((uint32_t*)(header + 34)) = pixel_data_size;
+    
+    memcpy(bmp, header, 54);
+    
+    // Конвертируем пиксели
+    uint16_t *pixels = (uint16_t*)rgb565_data;
+    uint8_t *bmp_data = bmp + 54;
+    
+    for (int y = height - 1; y >= 0; y--) {
+        int bmp_row_offset = (height - 1 - y) * row_size;
+        
+        for (int x = 0; x < width; x++) {
+
+            uint16_t pixel = pixels[y * width + x];
+
+            uint8_t b = ((pixel >> 11) & 0x1F) * 255 / 31;
+            uint8_t g = ((pixel >> 5)  & 0x3F) * 255 / 63;
+            uint8_t r = (pixel & 0x1F) * 255 / 31;
+
+            bmp_data[bmp_row_offset + x * 3 + 0] = b;
+            bmp_data[bmp_row_offset + x * 3 + 1] = g;
+            bmp_data[bmp_row_offset + x * 3 + 2] = r;
+
+            // uint16_t pixel = pixels[y * width + x];
+
+            // uint8_t r = ((pixel >> 11) & 0x1F) * 255 / 31;
+            // uint8_t g = ((pixel >> 5)  & 0x3F) * 255 / 63;
+            // uint8_t b = (pixel & 0x1F) * 255 / 31;
+            
+            // bmp_data[bmp_row_offset + x * 3] = b;
+            // bmp_data[bmp_row_offset + x * 3 + 1] = g;
+            // bmp_data[bmp_row_offset + x * 3 + 2] = r;
+        }
+        
+        // Padding
+        int padding = row_size - (width * 3);
+        for (int p = 0; p < padding; p++) {
+            bmp_data[bmp_row_offset + width * 3 + p] = 0;
+        }
+    }
+    
+    return bmp;
+}
+// Отправка BMP по UART с процентами
+static void send_bmp_over_uart(uint8_t *bmp_data, size_t bmp_size)
+{
+    ESP_LOGI(TAG, "Sending BMP, size: %u bytes", (unsigned int)bmp_size);
+    
+    // Отправляем команду начала
+    char start_cmd[32];
+    snprintf(start_cmd, sizeof(start_cmd), "BMP_START:%u\n", (unsigned int)bmp_size);
+    uart_write_bytes(UART_CMD_NUM, start_cmd, strlen(start_cmd));
+    uart_wait_tx_done(UART_CMD_NUM, portMAX_DELAY);  // Ждем отправки
+    vTaskDelay(pdMS_TO_TICKS(10));
+    
+    // Отправляем данные с процентами
+    size_t sent = 0;
+    const size_t CHUNK_SIZE = 4096;
+    int last_percent = -1;
+    
+    while (sent < bmp_size) {
+        size_t to_send = (bmp_size - sent) > CHUNK_SIZE ? CHUNK_SIZE : (bmp_size - sent);
+        uart_write_bytes(UART_CMD_NUM, bmp_data + sent, to_send);
+        sent += to_send;
+        
+        // Вычисляем процент
+        int percent = (sent * 100) / bmp_size;
+        if (percent != last_percent && percent % 10 == 0) {
+            ESP_LOGI(TAG, "Progress: %d%% (%u/%u bytes)", percent, (unsigned int)sent, (unsigned int)bmp_size);
+            
+            // Отправляем процент на ПК
+            char percent_msg[32];
+            snprintf(percent_msg, sizeof(percent_msg), "PROGRESS:%d\n", percent);
+            uart_write_bytes(UART_CMD_NUM, percent_msg, strlen(percent_msg));
+            last_percent = percent;
+        }
+        
+        vTaskDelay(pdMS_TO_TICKS(2));  // Увеличил задержку
+    }
+    
+    // Ждем завершения отправки всех данных - ВАЖНО!
+    uart_wait_tx_done(UART_CMD_NUM, portMAX_DELAY);
+    vTaskDelay(pdMS_TO_TICKS(50));  // Дополнительная задержка
+    
+    // Отправляем команду завершения
+    uart_write_bytes(UART_CMD_NUM, "BMP_END\n", 8);
+    uart_wait_tx_done(UART_CMD_NUM, portMAX_DELAY);
+    
+    ESP_LOGI(TAG, "BMP sent successfully! 100%%");
+}
+// Задача обработки команд с ПК
+static void uart_command_task(void *pvParameters)
+{
+    char buffer[64];
+    int idx = 0;
+    uint8_t byte;
+    
+    uart_config_t uart_config = {
+        .baud_rate = UART_CMD_BAUD,
+        .data_bits = UART_DATA_8_BITS,
+        .parity = UART_PARITY_DISABLE,
+        .stop_bits = UART_STOP_BITS_1,
+        .flow_ctrl = UART_HW_FLOWCTRL_DISABLE,
+        .source_clk = UART_SCLK_DEFAULT,
+    };
+    
+    ESP_ERROR_CHECK(uart_driver_install(UART_CMD_NUM, 32768, 0, 0, NULL, 0));
+    ESP_ERROR_CHECK(uart_param_config(UART_CMD_NUM, &uart_config));
+    ESP_ERROR_CHECK(uart_set_pin(UART_CMD_NUM, UART_CMD_TX, UART_CMD_RX, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE));
+    
+    ESP_LOGI(TAG, "UART command ready. Send 'get_bmp' or 'photo'");
+    
+    while (1) {
+        if (uart_read_bytes(UART_CMD_NUM, &byte, 1, pdMS_TO_TICKS(100)) == 1) {
+            if (byte == '\n' || byte == '\r') {
+                if (idx > 0) {
+                    buffer[idx] = '\0';
+                    ESP_LOGI(TAG, "Command: %s", buffer);
+                    
+                    if (strcmp(buffer, "get_bmp") == 0 || strcmp(buffer, "photo") == 0) {
+                        // Очищаем UART перед отправкой
+                        uart_flush(UART_CMD_NUM);
+                        vTaskDelay(pdMS_TO_TICKS(10));
+                        
+                        send_bmp_requested = true;
+                        uart_write_bytes(UART_CMD_NUM, "OK\n", 3);
+                        uart_wait_tx_done(UART_CMD_NUM, portMAX_DELAY);
+                    } else if (strcmp(buffer, "help") == 0) {
+                        uart_write_bytes(UART_CMD_NUM, "Commands: get_bmp, photo, help\n", 30);
+                    }
+                    idx = 0;
+                }
+            } else if (idx < sizeof(buffer) - 1) {
+                buffer[idx++] = byte;
+            }
+        }
+    }
+}
 
 static void save_bmp_rgb888(const char *path,
                             const uint8_t *data,
@@ -72,21 +259,13 @@ static void save_bmp_rgb888(const char *path,
 
             uint16_t p = pix[y * width + x];
 
-            // uint8_t b = ((p >> 11) & 0x1F) << 3;
-            // uint8_t g = ((p >> 5) & 0x3F) << 2;
-            // uint8_t r = (p & 0x1F) << 3;
-
-            // row[idx++] = b;
-            // row[idx++] = g;
-            // row[idx++] = r;
-
             uint8_t r = ((p >> 11) & 0x1F) << 3;
-uint8_t g = ((p >> 5) & 0x3F) << 2;
-uint8_t b = (p & 0x1F) << 3;
+            uint8_t g = ((p >> 5) & 0x3F) << 2;
+            uint8_t b = (p & 0x1F) << 3;
 
-row[idx++] = b;
-row[idx++] = g;
-row[idx++] = r;
+            row[idx++] = b;
+            row[idx++] = g;
+            row[idx++] = r;
         }
 
         while (idx < row_size)
@@ -121,34 +300,40 @@ static void save_raw_image(const uint8_t *data, size_t size, uint32_t width, uin
         ESP_LOGE("MAIN", "Write error: wrote %u of %u bytes", (unsigned int)written, (unsigned int)size);
     }
 }
-
-static void frame_callback(uint8_t *camera_buf, uint8_t buf_idx, 
-                          uint32_t width, uint32_t height, 
-                          size_t buf_len, void *user_data) 
+static void frame_callback(uint8_t *camera_buf, uint8_t buf_idx,
+                          uint32_t width, uint32_t height,
+                          size_t buf_len, void *user_data)
 {
     static int frame_count = 0;
 
-    frame_count++;
+    // if (++frame_count < 30) {
+    //     return;
+    // }
 
-    if (frame_count < 30) {
-        return;
-    }
+    frame_count = 0;
 
-    if (!frame_ready) {
+    if (!frame_ready && send_bmp_requested) {
+
         raw_frame = malloc(buf_len);
+
         if (raw_frame) {
-            memcpy(raw_frame, camera_buf, buf_len);
+
             esp_cache_msync(camera_buf,
                 buf_len,
                 ESP_CACHE_MSYNC_FLAG_DIR_M2C);
+
+            memcpy(raw_frame, camera_buf, buf_len);
+
             img_width = width;
             img_height = height;
             img_size = buf_len;
+
             frame_ready = true;
-            
-            ESP_LOGI("MAIN", "Frame captured: %lux%lu, size=%u bytes", 
-                     (unsigned long)width, (unsigned long)height, (unsigned int)buf_len);
-            ESP_LOG_BUFFER_HEX("MAIN", camera_buf, 32);
+
+            ESP_LOGI("MAIN", "Frame captured: %lux%lu size=%u",
+                     (unsigned long)width,
+                     (unsigned long)height,
+                     (unsigned int)buf_len);
         }
     }
 }
@@ -164,6 +349,10 @@ void app_main(void)
     app_sdcard_init();
     // Initialize JPEG encoder
     app_jpeg_init();
+    
+    // Запуск UART команды
+    xTaskCreate(uart_command_task, "uart_cmd", 4096, NULL, 5, NULL);
+    
     // Initialize camera
     app_video_main(NULL);
     int fd = app_video_open(EXAMPLE_CAM_DEV_PATH, APP_VIDEO_FMT);
@@ -201,48 +390,39 @@ void app_main(void)
         return;
     }
     
-    // Wait for frame (with timeout)
-    int timeout = 0;
-    while (!frame_ready && timeout < 500) {
-        vTaskDelay(pdMS_TO_TICKS(100));
-        timeout++;
-    }
-    app_video_stream_task_stop(fd);
+    ESP_LOGI(TAG, "Camera ready. Send 'get_bmp' or 'photo' over UART");
     
-    if (!frame_ready) {
-        ESP_LOGE("MAIN", "Timeout: No frame captured");
-        return;
-    }
-    
-    // Save raw image
-    if (raw_frame) {
-        save_bmp_rgb888("/sdcard/images/test.bmp",
-                raw_frame,
-                img_width,
-                img_height);
-        ESP_LOGI("MAIN", "Saving raw image, size=%u bytes", (unsigned int)img_size);
-        save_raw_image(raw_frame, img_size, img_width, img_height);
-        ESP_LOGI("MAIN", "Converting Raw --> JPEG: %u bytes", (unsigned int)img_size);
+    // Main loop
+    while (1) {
+        if (send_bmp_requested && frame_ready && raw_frame) {
+            // Save raw image
+            if (raw_frame) {
+                // save_bmp_rgb888("/sdcard/images/test.bmp",
+                //         raw_frame,
+                //         img_width,
+                //         img_height);
+                ESP_LOGI("MAIN", "Saving raw image, size=%u bytes", (unsigned int)img_size);
+                save_raw_image(raw_frame, img_size, img_width, img_height);
+                ESP_LOGI("MAIN", "Converting Raw --> BMP for UART: %u bytes", (unsigned int)img_size);
 
-        size_t jpeg_size = 0;
-
-        ret = app_jpeg_raw2jpeg(
-                raw_frame,
-                img_size,
-                img_width,
-                img_height,
-                &jpeg_size);
-
-        if (jpeg_size > 0 && ret == ESP_OK) {
-            ESP_LOGI("MAIN", "JPEG size: %u bytes", (unsigned int)jpeg_size);
-        } else {
-            ESP_LOGE("MAIN", "JPEG conversion failed: %s", esp_err_to_name(ret));
+                size_t bmp_size = 0;
+                uint8_t *bmp_data = convert_rgb565_to_bmp(raw_frame, img_width, img_height, &bmp_size);
+                
+                if (bmp_data && bmp_size > 0) {
+                    ESP_LOGI("MAIN", "BMP size: %u bytes", (unsigned int)bmp_size);
+                    send_bmp_over_uart(bmp_data, bmp_size);
+                    free(bmp_data);
+                } else {
+                    ESP_LOGE("MAIN", "BMP conversion failed");
+                    uart_write_bytes(UART_CMD_NUM, "ERROR: BMP conversion failed\n", 30);
+                }
+                
+                free(raw_frame);
+                raw_frame = NULL;
+                frame_ready = false;
+                send_bmp_requested = false;
+            }
         }
-        
-        free(raw_frame);
+        vTaskDelay(pdMS_TO_TICKS(10));
     }
-    
-
-        
-
 }
