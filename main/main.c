@@ -17,6 +17,7 @@
 #include "driver/ppa.h"
 #include "esp_cache.h"
 #include "esp_private/esp_cache_private.h"
+#include "app/bmp.h"
 
 static const char *TAG = "MAIN";
 
@@ -34,83 +35,6 @@ static size_t img_size = 0;
 static size_t s_cache_line_size = 0;
 static bool send_bmp_requested = false;
 
-// Конвертация RGB565 в BMPstatic 
-uint8_t* convert_rgb565_to_bmp(const uint8_t *rgb565_data,
-                                      int width,
-                                      int height,
-                                      size_t *bmp_size)
-{
-    int row_size = (width * 3 + 3) & ~3;
-    int pixel_data_size = row_size * height;
-
-    *bmp_size = 54 + pixel_data_size;
-
-    uint8_t *bmp = malloc(*bmp_size);
-
-    if (!bmp) {
-        ESP_LOGE(TAG, "BMP malloc failed");
-        return NULL;
-    }
-
-    memset(bmp, 0, *bmp_size);
-
-    // =========================
-    // BMP HEADER
-    // =========================
-
-    bmp[0] = 'B';
-    bmp[1] = 'M';
-
-    *((uint32_t *)(bmp + 2))  = *bmp_size;
-    *((uint32_t *)(bmp + 10)) = 54;
-    *((uint32_t *)(bmp + 14)) = 40;
-
-    *((uint32_t *)(bmp + 18)) = width;
-    *((uint32_t *)(bmp + 22)) = height;
-
-    *((uint16_t *)(bmp + 26)) = 1;
-    *((uint16_t *)(bmp + 28)) = 24;
-
-    *((uint32_t *)(bmp + 34)) = pixel_data_size;
-
-    bmp[38] = 0x13;
-    bmp[39] = 0x0B;
-
-    bmp[42] = 0x13;
-    bmp[43] = 0x0B;
-
-    // =========================
-    // PIXELS
-    // =========================
-
-    const uint16_t *pixels = (const uint16_t *)rgb565_data;
-
-    for (int y = 0; y < height; y++) {
-
-        uint8_t *bmp_row =
-            bmp + 54 + (height - 1 - y) * row_size;
-
-        for (int x = 0; x < width; x++) {
-
-            uint16_t pixel = pixels[y * width + x];
-
-            // RGB565:
-            // RRRRRGGGGGGBBBBB
-
-            uint8_t r = ((pixel >> 11) & 0x1F) * 255 / 31;
-            uint8_t g = ((pixel >> 5)  & 0x3F) * 255 / 63;
-            uint8_t b = (pixel & 0x1F) * 255 / 31;
-
-            // BMP хранит BGR
-
-            bmp_row[x * 3 + 0] = r;
-            bmp_row[x * 3 + 1] = b;
-            bmp_row[x * 3 + 2] = g;
-        }
-    }
-
-    return bmp;
-}
 // Отправка BMP по UART с процентами
 static void send_bmp_over_uart(uint8_t *bmp_data, size_t bmp_size)
 {
@@ -205,76 +129,6 @@ static void uart_command_task(void *pvParameters)
             }
         }
     }
-}
-
-static void save_bmp_rgb888(const char *path,
-                            const uint8_t *data,
-                            int width,
-                            int height)
-{
-    FILE *f = fopen(path, "wb");
-    if (!f) return;
-
-    int row_size = (width * 3 + 3) & ~3;
-    int pixel_data_size = row_size * height;
-    int file_size = 54 + pixel_data_size;
-
-    uint8_t header[54] = {
-        'B','M',
-        file_size, file_size >> 8, file_size >> 16, file_size >> 24,
-        0,0,0,0,
-        54,0,0,0,
-
-        40,0,0,0,
-        width, width >> 8, width >> 16, width >> 24,
-        height, height >> 8, height >> 16, height >> 24,
-
-        1,0,
-        24,0,
-
-        0,0,0,0,
-        pixel_data_size,
-        pixel_data_size >> 8,
-        pixel_data_size >> 16,
-        pixel_data_size >> 24,
-
-        0x13,0x0B,0,0,
-        0x13,0x0B,0,0,
-        0,0,0,0,
-        0,0,0,0
-    };
-
-    fwrite(header, 1, 54, f);
-
-    const uint16_t *pix = (const uint16_t *)data;
-
-    uint8_t *row = malloc(row_size);
-
-    for (int y = height - 1; y >= 0; y--) {
-
-        int idx = 0;
-
-        for (int x = 0; x < width; x++) {
-
-            uint16_t p = pix[y * width + x];
-
-            uint8_t r = ((p >> 11) & 0x1F) << 3;
-            uint8_t g = ((p >> 5) & 0x3F) << 2;
-            uint8_t b = (p & 0x1F) << 3;
-
-            row[idx++] = b;
-            row[idx++] = g;
-            row[idx++] = r;
-        }
-
-        while (idx < row_size)
-            row[idx++] = 0;
-
-        fwrite(row, 1, row_size, f);
-    }
-
-    free(row);
-    fclose(f);
 }
 
 static void save_raw_image(const uint8_t *data, size_t size, uint32_t width, uint32_t height)

@@ -11,4 +11,9 @@ __pycache__/
 sdkconfig
 sdkconfig.old
 
+# Images
+*.jpg
+*.jpeg
+*.png
+*.bmp
 

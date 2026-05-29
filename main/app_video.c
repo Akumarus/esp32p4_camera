@@ -142,90 +142,90 @@ int app_video_open(char *dev, video_fmt_t init_fmt)
     }
 
 
-    struct v4l2_control ctrl;
+    // struct v4l2_control ctrl;
 
-    // =====================
-    // AUTO WHITE BALANCE OFF
-    // =====================
+    // // =====================
+    // // AUTO WHITE BALANCE OFF
+    // // =====================
 
-    memset(&ctrl, 0, sizeof(ctrl));
-    ctrl.id = V4L2_CID_AUTO_WHITE_BALANCE;
-    ctrl.value = 2;
+    // memset(&ctrl, 0, sizeof(ctrl));
+    // ctrl.id = V4L2_CID_AUTO_WHITE_BALANCE;
+    // ctrl.value = 2;
 
-    if (ioctl(fd, VIDIOC_S_CTRL, &ctrl) != 0) {
-        ESP_LOGW(TAG, "AWB disable failed");
-    } else {
-        ESP_LOGI(TAG, "AWB disabled");
-    }
+    // if (ioctl(fd, VIDIOC_S_CTRL, &ctrl) != 0) {
+    //     ESP_LOGW(TAG, "AWB disable failed");
+    // } else {
+    //     ESP_LOGI(TAG, "AWB disabled");
+    // }
 
-    // =====================
-    // AUTO EXPOSURE OFF
-    // =====================
+    // // =====================
+    // // AUTO EXPOSURE OFF
+    // // =====================
 
-    memset(&ctrl, 0, sizeof(ctrl));
-    ctrl.id = V4L2_CID_EXPOSURE;
-    ctrl.value = 50;
-    // ctrl.value = V4L2_EXPOSURE_MANUAL;
+    // memset(&ctrl, 0, sizeof(ctrl));
+    // ctrl.id = V4L2_CID_EXPOSURE;
+    // ctrl.value = 50;
+    // // ctrl.value = V4L2_EXPOSURE_MANUAL;
 
-    if (ioctl(fd, VIDIOC_S_CTRL, &ctrl) != 0) {
-        ESP_LOGW(TAG, "AE disable failed");
-    } else {
-        ESP_LOGI(TAG, "AE disabled");
-    }
+    // if (ioctl(fd, VIDIOC_S_CTRL, &ctrl) != 0) {
+    //     ESP_LOGW(TAG, "AE disable failed");
+    // } else {
+    //     ESP_LOGI(TAG, "AE disabled");
+    // }
 
-    memset(&ctrl, 0, sizeof(ctrl));
-    ctrl.id = V4L2_CID_GAIN;
-    ctrl.value = 5;
+    // memset(&ctrl, 0, sizeof(ctrl));
+    // ctrl.id = V4L2_CID_GAIN;
+    // ctrl.value = 5;
 
-    if (ioctl(fd, VIDIOC_S_CTRL, &ctrl) != 0) {
-        ESP_LOGW(TAG, "cfgfgfgfgfgfgfg");
-    } else {
-        ESP_LOGI(TAG, "cggggggggggggggg");
-    }
+    // if (ioctl(fd, VIDIOC_S_CTRL, &ctrl) != 0) {
+    //     ESP_LOGW(TAG, "cfgfgfgfgfgfgfg");
+    // } else {
+    //     ESP_LOGI(TAG, "cggggggggggggggg");
+    // }
 
 
 
-    // =====================
-    // CONTRAST
-    // =====================
+    // // =====================
+    // // CONTRAST
+    // // =====================
 
-    memset(&ctrl, 0, sizeof(ctrl));
-    ctrl.id = V4L2_CID_CONTRAST;
-    ctrl.value = 48;
+    // memset(&ctrl, 0, sizeof(ctrl));
+    // ctrl.id = V4L2_CID_CONTRAST;
+    // ctrl.value = 48;
 
-    if (ioctl(fd, VIDIOC_S_CTRL, &ctrl) != 0) {
-        ESP_LOGW(TAG, "contrast set failed");
-    } else {
-        ESP_LOGI(TAG, "contrast set");
-    }
+    // if (ioctl(fd, VIDIOC_S_CTRL, &ctrl) != 0) {
+    //     ESP_LOGW(TAG, "contrast set failed");
+    // } else {
+    //     ESP_LOGI(TAG, "contrast set");
+    // }
 
-    // =====================
-    // SATURATION
-    // =====================
+    // // =====================
+    // // SATURATION
+    // // =====================
 
-    memset(&ctrl, 0, sizeof(ctrl));
-    ctrl.id = V4L2_CID_SATURATION;
-    ctrl.value = 64;
+    // memset(&ctrl, 0, sizeof(ctrl));
+    // ctrl.id = V4L2_CID_SATURATION;
+    // ctrl.value = 64;
 
-    if (ioctl(fd, VIDIOC_S_CTRL, &ctrl) != 0) {
-        ESP_LOGW(TAG, "saturation set failed");
-    } else {
-        ESP_LOGI(TAG, "saturation set");
-    }
+    // if (ioctl(fd, VIDIOC_S_CTRL, &ctrl) != 0) {
+    //     ESP_LOGW(TAG, "saturation set failed");
+    // } else {
+    //     ESP_LOGI(TAG, "saturation set");
+    // }
 
-    // =====================
-    // SHARPNESS
-    // =====================
+    // // =====================
+    // // SHARPNESS
+    // // =====================
 
-    memset(&ctrl, 0, sizeof(ctrl));
-    ctrl.id = V4L2_CID_SHARPNESS;
-    ctrl.value = 32;
+    // memset(&ctrl, 0, sizeof(ctrl));
+    // ctrl.id = V4L2_CID_SHARPNESS;
+    // ctrl.value = 32;
 
-    if (ioctl(fd, VIDIOC_S_CTRL, &ctrl) != 0) {
-        ESP_LOGW(TAG, "sharpness set failed");
-    } else {
-        ESP_LOGI(TAG, "sharpness set");
-    }
+    // if (ioctl(fd, VIDIOC_S_CTRL, &ctrl) != 0) {
+    //     ESP_LOGW(TAG, "sharpness set failed");
+    // } else {
+    //     ESP_LOGI(TAG, "sharpness set");
+    // }
 
 
 
