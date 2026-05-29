@@ -131,40 +131,10 @@ static void uart_command_task(void *pvParameters)
     }
 }
 
-static void save_raw_image(const uint8_t *data, size_t size, uint32_t width, uint32_t height)
-{
-    char path[64];
-    snprintf(path, sizeof(path), "/sdcard/images/frame.bin");
-    
-    ESP_LOGI("MAIN", "Saving: %s, size=%u bytes", path, (unsigned int)size);
-    
-    FILE *f = fopen(path, "wb");
-    if (!f) {
-        ESP_LOGE("MAIN", "Failed to open %s, errno=%d", path, errno);
-        return;
-    }
-    
-    size_t written = fwrite(data, 1, size, f);
-    fclose(f);
-    
-    if (written == size) {
-        ESP_LOGI("MAIN", "Saved: %s (%u bytes)", path, (unsigned int)size);
-    } else {
-        ESP_LOGE("MAIN", "Write error: wrote %u of %u bytes", (unsigned int)written, (unsigned int)size);
-    }
-}
 static void frame_callback(uint8_t *camera_buf, uint8_t buf_idx,
                           uint32_t width, uint32_t height,
                           size_t buf_len, void *user_data)
 {
-    static int frame_count = 0;
-
-    // if (++frame_count < 30) {
-    //     return;
-    // }
-
-    frame_count = 0;
-
     if (!frame_ready && send_bmp_requested) {
 
         raw_frame = malloc(buf_len);

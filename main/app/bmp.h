@@ -1,7 +1,5 @@
-#ifndef BMP_H
+#pragma once
 #include <stdint.h>
-#define BMP_H
-
 #define BMP_FILE_HEADER_SIZE 14
 #define BMP_INFO_HEADER_SIZE 40
 #define BMP_HEADER_SIZE (BMP_FILE_HEADER_SIZE + BMP_INFO_HEADER_SIZE)
@@ -36,5 +34,3 @@ uint8_t* convert_rgb565_to_bmp(const uint8_t* inp_data,
                                uint16_t width,
                                uint16_t height,
                                size_t* bmp_size);
-
-#endif // BMP_H
