@@ -187,72 +187,72 @@ static void frame_callback(uint8_t *camera_buf, uint8_t buf_idx,
     }
 }
 
-static void debug_pixel_formats(const uint8_t *rgb565_data,
-                                int width,
-                                int height)
-{
-    const uint16_t *pixels = (const uint16_t *)rgb565_data;
+// static void debug_pixel_formats(const uint8_t *rgb565_data,
+//                                 int width,
+//                                 int height)
+// {
+//     const uint16_t *pixels = (const uint16_t *)rgb565_data;
 
-    int cx = width / 2;
-    int cy = height / 2;
+//     int cx = width / 2;
+//     int cy = height / 2;
 
-    // Берем центральный пиксель
-    uint16_t p = pixels[cy * width + cx];
+//     // Берем центральный пиксель
+//     uint16_t p = pixels[cy * width + cx];
 
-    // Вариант со swap
-    uint16_t ps = (p >> 8) | (p << 8);
+//     // Вариант со swap
+//     uint16_t ps = (p >> 8) | (p << 8);
 
-    ESP_LOGI("PIXDBG", "========================================");
-    ESP_LOGI("PIXDBG", "RAW PIXEL:");
-    ESP_LOGI("PIXDBG", "p  = 0x%04X", p);
-    ESP_LOGI("PIXDBG", "ps = 0x%04X (byte swap)", ps);
+//     ESP_LOGI("PIXDBG", "========================================");
+//     ESP_LOGI("PIXDBG", "RAW PIXEL:");
+//     ESP_LOGI("PIXDBG", "p  = 0x%04X", p);
+//     ESP_LOGI("PIXDBG", "ps = 0x%04X (byte swap)", ps);
 
-    // =========================
-    // RGB565 normal
-    // =========================
+//     // =========================
+//     // RGB565 normal
+//     // =========================
 
-    uint8_t r1 = ((p >> 11) & 0x1F) * 255 / 31;
-    uint8_t g1 = ((p >> 5)  & 0x3F) * 255 / 63;
-    uint8_t b1 = (p & 0x1F) * 255 / 31;
+//     uint8_t r1 = ((p >> 11) & 0x1F) * 255 / 31;
+//     uint8_t g1 = ((p >> 5)  & 0x3F) * 255 / 63;
+//     uint8_t b1 = (p & 0x1F) * 255 / 31;
 
-    ESP_LOGI("PIXDBG", "RGB565:");
-    ESP_LOGI("PIXDBG", "R=%3u G=%3u B=%3u", r1, g1, b1);
+//     ESP_LOGI("PIXDBG", "RGB565:");
+//     ESP_LOGI("PIXDBG", "R=%3u G=%3u B=%3u", r1, g1, b1);
 
-    // =========================
-    // BGR565
-    // =========================
+//     // =========================
+//     // BGR565
+//     // =========================
 
-    uint8_t r2 = (p & 0x1F) * 255 / 31;
-    uint8_t g2 = ((p >> 5) & 0x3F) * 255 / 63;
-    uint8_t b2 = ((p >> 11) & 0x1F) * 255 / 31;
+//     uint8_t r2 = (p & 0x1F) * 255 / 31;
+//     uint8_t g2 = ((p >> 5) & 0x3F) * 255 / 63;
+//     uint8_t b2 = ((p >> 11) & 0x1F) * 255 / 31;
 
-    ESP_LOGI("PIXDBG", "BGR565:");
-    ESP_LOGI("PIXDBG", "R=%3u G=%3u B=%3u", r2, g2, b2);
+//     ESP_LOGI("PIXDBG", "BGR565:");
+//     ESP_LOGI("PIXDBG", "R=%3u G=%3u B=%3u", r2, g2, b2);
 
-    // =========================
-    // RGB565 + SWAP
-    // =========================
+//     // =========================
+//     // RGB565 + SWAP
+//     // =========================
 
-    uint8_t r3 = ((ps >> 11) & 0x1F) * 255 / 31;
-    uint8_t g3 = ((ps >> 5)  & 0x3F) * 255 / 63;
-    uint8_t b3 = (ps & 0x1F) * 255 / 31;
+//     uint8_t r3 = ((ps >> 11) & 0x1F) * 255 / 31;
+//     uint8_t g3 = ((ps >> 5)  & 0x3F) * 255 / 63;
+//     uint8_t b3 = (ps & 0x1F) * 255 / 31;
 
-    ESP_LOGI("PIXDBG", "RGB565 SWAP:");
-    ESP_LOGI("PIXDBG", "R=%3u G=%3u B=%3u", r3, g3, b3);
+//     ESP_LOGI("PIXDBG", "RGB565 SWAP:");
+//     ESP_LOGI("PIXDBG", "R=%3u G=%3u B=%3u", r3, g3, b3);
 
-    // =========================
-    // BGR565 + SWAP
-    // =========================
+//     // =========================
+//     // BGR565 + SWAP
+//     // =========================
 
-    uint8_t r4 = (ps & 0x1F) * 255 / 31;
-    uint8_t g4 = ((ps >> 5) & 0x3F) * 255 / 63;
-    uint8_t b4 = ((ps >> 11) & 0x1F) * 255 / 31;
+//     uint8_t r4 = (ps & 0x1F) * 255 / 31;
+//     uint8_t g4 = ((ps >> 5) & 0x3F) * 255 / 63;
+//     uint8_t b4 = ((ps >> 11) & 0x1F) * 255 / 31;
 
-    ESP_LOGI("PIXDBG", "BGR565 SWAP:");
-    ESP_LOGI("PIXDBG", "R=%3u G=%3u B=%3u", r4, g4, b4);
+//     ESP_LOGI("PIXDBG", "BGR565 SWAP:");
+//     ESP_LOGI("PIXDBG", "R=%3u G=%3u B=%3u", r4, g4, b4);
 
-    ESP_LOGI("PIXDBG", "========================================");
-}
+//     ESP_LOGI("PIXDBG", "========================================");
+// }
 
 
 void app_main(void)
@@ -314,13 +314,10 @@ void app_main(void)
         if (send_bmp_requested && frame_ready && raw_frame) {
             // Save raw image
             if (raw_frame) {
-                debug_pixel_formats(raw_frame, img_width, img_height);
-                // save_bmp_rgb888("/sdcard/images/test.bmp",
-                //         raw_frame,
-                //         img_width,
-                //         img_height);
+                // debug_pixel_formats(raw_frame, img_width, img_height);
                 ESP_LOGI("MAIN", "Saving raw image, size=%u bytes", (unsigned int)img_size);
-                save_raw_image(raw_frame, img_size, img_width, img_height);
+                // app_sdcard_save_photo("frame", raw_frame, img_size, FORMAT_RAW);
+                // app_sdcard_save_photo("frame", bmp_data, bmp_size, FORMAT_BMP);
                 ESP_LOGI("MAIN", "Converting Raw --> BMP for UART: %u bytes", (unsigned int)img_size);
 
                 size_t bmp_size = 0;

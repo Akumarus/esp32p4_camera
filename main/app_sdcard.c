@@ -11,6 +11,9 @@ const static char *TAG = "app_sdcard";
 
 #define MOUNT_POINT "/sdcard"
 
+static const char* get_format_ext(photo_format_t format);
+
+
 esp_err_t app_sdcard_init() {
     
     esp_err_t ret;
@@ -71,5 +74,44 @@ esp_err_t app_sdcard_mkdir(const char *path) {
     return ESP_OK;
 }
 
+static const char* get_format_ext(photo_format_t format) {
+    switch (format) {
+        case FORMAT_RAW:
+            return "bin";
+        case FORMAT_BMP:
+            return "bmp";
+        default:
+            return NULL;
+    }
+}
 
+esp_err_t app_sdcard_save_photo(const char *filename, const 
+                                uint8_t* data, 
+                                size_t size,
+                                photo_format_t format)
+{
+    // Получаем строку расширения для формата
+    const char *ext = get_format_ext(format);
+    if (!ext) {
+        ESP_LOGE(TAG, "Unsupported photo format: %d", format);
+        return ESP_ERR_INVALID_ARG;
+    }
+    // Формируем полный путь к файлу и сохраняем данные
+    char path[128];
+    snprintf(path, sizeof(path), "/sdcard/images/%s.%s", filename, ext);
+    FILE *file = fopen(path, "wb");
+    if (!file) {
+        ESP_LOGE(TAG, "Failed to create file: %s", path);
+        return ESP_FAIL;
+    }
 
+    size_t written = fwrite(data, 1, size, file);
+    fclose(file);
+    if (written != size) {
+        ESP_LOGE(TAG, "Failed to write all data to file: %s", path);
+        return ESP_FAIL;
+    }
+
+    ESP_LOGI(TAG, "Photo saved: %s", path);
+    return ESP_OK;
+}
