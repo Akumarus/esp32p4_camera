@@ -34,82 +34,81 @@ static size_t img_size = 0;
 static size_t s_cache_line_size = 0;
 static bool send_bmp_requested = false;
 
-// Конвертация RGB565 в BMP
-static uint8_t* convert_rgb565_to_bmp(const uint8_t *rgb565_data, 
-                                       int width, int height, 
-                                       size_t *bmp_size)
+// Конвертация RGB565 в BMPstatic 
+uint8_t* convert_rgb565_to_bmp(const uint8_t *rgb565_data,
+                                      int width,
+                                      int height,
+                                      size_t *bmp_size)
 {
     int row_size = (width * 3 + 3) & ~3;
     int pixel_data_size = row_size * height;
+
     *bmp_size = 54 + pixel_data_size;
-    
+
     uint8_t *bmp = malloc(*bmp_size);
+
     if (!bmp) {
         ESP_LOGE(TAG, "BMP malloc failed");
         return NULL;
     }
-    
-    // BMP Header
-    uint8_t header[54] = {0};
-    header[0] = 'B';
-    header[1] = 'M';
-    header[10] = 54;
-    header[14] = 40;
-    header[26] = 1;
-    header[28] = 24;
-    header[38] = 0x13;
-    header[39] = 0x0B;
-    header[42] = 0x13;
-    header[43] = 0x0B;
-    
-    // File size
-    *((uint32_t*)(header + 2)) = *bmp_size;
-    // Width
-    *((uint32_t*)(header + 18)) = width;
-    // Height
-    *((uint32_t*)(header + 22)) = height;
-    // Image size
-    *((uint32_t*)(header + 34)) = pixel_data_size;
-    
-    memcpy(bmp, header, 54);
-    
-    // Конвертируем пиксели
-    uint16_t *pixels = (uint16_t*)rgb565_data;
-    uint8_t *bmp_data = bmp + 54;
-    
-    for (int y = height - 1; y >= 0; y--) {
-        int bmp_row_offset = (height - 1 - y) * row_size;
-        
+
+    memset(bmp, 0, *bmp_size);
+
+    // =========================
+    // BMP HEADER
+    // =========================
+
+    bmp[0] = 'B';
+    bmp[1] = 'M';
+
+    *((uint32_t *)(bmp + 2))  = *bmp_size;
+    *((uint32_t *)(bmp + 10)) = 54;
+    *((uint32_t *)(bmp + 14)) = 40;
+
+    *((uint32_t *)(bmp + 18)) = width;
+    *((uint32_t *)(bmp + 22)) = height;
+
+    *((uint16_t *)(bmp + 26)) = 1;
+    *((uint16_t *)(bmp + 28)) = 24;
+
+    *((uint32_t *)(bmp + 34)) = pixel_data_size;
+
+    bmp[38] = 0x13;
+    bmp[39] = 0x0B;
+
+    bmp[42] = 0x13;
+    bmp[43] = 0x0B;
+
+    // =========================
+    // PIXELS
+    // =========================
+
+    const uint16_t *pixels = (const uint16_t *)rgb565_data;
+
+    for (int y = 0; y < height; y++) {
+
+        uint8_t *bmp_row =
+            bmp + 54 + (height - 1 - y) * row_size;
+
         for (int x = 0; x < width; x++) {
 
             uint16_t pixel = pixels[y * width + x];
 
-            uint8_t b = ((pixel >> 11) & 0x1F) * 255 / 31;
+            // RGB565:
+            // RRRRRGGGGGGBBBBB
+
+            uint8_t r = ((pixel >> 11) & 0x1F) * 255 / 31;
             uint8_t g = ((pixel >> 5)  & 0x3F) * 255 / 63;
-            uint8_t r = (pixel & 0x1F) * 255 / 31;
+            uint8_t b = (pixel & 0x1F) * 255 / 31;
 
-            bmp_data[bmp_row_offset + x * 3 + 0] = b;
-            bmp_data[bmp_row_offset + x * 3 + 1] = g;
-            bmp_data[bmp_row_offset + x * 3 + 2] = r;
+            // BMP хранит BGR
 
-            // uint16_t pixel = pixels[y * width + x];
-
-            // uint8_t r = ((pixel >> 11) & 0x1F) * 255 / 31;
-            // uint8_t g = ((pixel >> 5)  & 0x3F) * 255 / 63;
-            // uint8_t b = (pixel & 0x1F) * 255 / 31;
-            
-            // bmp_data[bmp_row_offset + x * 3] = b;
-            // bmp_data[bmp_row_offset + x * 3 + 1] = g;
-            // bmp_data[bmp_row_offset + x * 3 + 2] = r;
-        }
-        
-        // Padding
-        int padding = row_size - (width * 3);
-        for (int p = 0; p < padding; p++) {
-            bmp_data[bmp_row_offset + width * 3 + p] = 0;
+            bmp_row[x * 3 + 0] = r;
+            bmp_row[x * 3 + 1] = b;
+            bmp_row[x * 3 + 2] = g;
         }
     }
-    
+
     return bmp;
 }
 // Отправка BMP по UART с процентами
@@ -318,10 +317,6 @@ static void frame_callback(uint8_t *camera_buf, uint8_t buf_idx,
 
         if (raw_frame) {
 
-            esp_cache_msync(camera_buf,
-                buf_len,
-                ESP_CACHE_MSYNC_FLAG_DIR_M2C);
-
             memcpy(raw_frame, camera_buf, buf_len);
 
             img_width = width;
@@ -337,6 +332,74 @@ static void frame_callback(uint8_t *camera_buf, uint8_t buf_idx,
         }
     }
 }
+
+static void debug_pixel_formats(const uint8_t *rgb565_data,
+                                int width,
+                                int height)
+{
+    const uint16_t *pixels = (const uint16_t *)rgb565_data;
+
+    int cx = width / 2;
+    int cy = height / 2;
+
+    // Берем центральный пиксель
+    uint16_t p = pixels[cy * width + cx];
+
+    // Вариант со swap
+    uint16_t ps = (p >> 8) | (p << 8);
+
+    ESP_LOGI("PIXDBG", "========================================");
+    ESP_LOGI("PIXDBG", "RAW PIXEL:");
+    ESP_LOGI("PIXDBG", "p  = 0x%04X", p);
+    ESP_LOGI("PIXDBG", "ps = 0x%04X (byte swap)", ps);
+
+    // =========================
+    // RGB565 normal
+    // =========================
+
+    uint8_t r1 = ((p >> 11) & 0x1F) * 255 / 31;
+    uint8_t g1 = ((p >> 5)  & 0x3F) * 255 / 63;
+    uint8_t b1 = (p & 0x1F) * 255 / 31;
+
+    ESP_LOGI("PIXDBG", "RGB565:");
+    ESP_LOGI("PIXDBG", "R=%3u G=%3u B=%3u", r1, g1, b1);
+
+    // =========================
+    // BGR565
+    // =========================
+
+    uint8_t r2 = (p & 0x1F) * 255 / 31;
+    uint8_t g2 = ((p >> 5) & 0x3F) * 255 / 63;
+    uint8_t b2 = ((p >> 11) & 0x1F) * 255 / 31;
+
+    ESP_LOGI("PIXDBG", "BGR565:");
+    ESP_LOGI("PIXDBG", "R=%3u G=%3u B=%3u", r2, g2, b2);
+
+    // =========================
+    // RGB565 + SWAP
+    // =========================
+
+    uint8_t r3 = ((ps >> 11) & 0x1F) * 255 / 31;
+    uint8_t g3 = ((ps >> 5)  & 0x3F) * 255 / 63;
+    uint8_t b3 = (ps & 0x1F) * 255 / 31;
+
+    ESP_LOGI("PIXDBG", "RGB565 SWAP:");
+    ESP_LOGI("PIXDBG", "R=%3u G=%3u B=%3u", r3, g3, b3);
+
+    // =========================
+    // BGR565 + SWAP
+    // =========================
+
+    uint8_t r4 = (ps & 0x1F) * 255 / 31;
+    uint8_t g4 = ((ps >> 5) & 0x3F) * 255 / 63;
+    uint8_t b4 = ((ps >> 11) & 0x1F) * 255 / 31;
+
+    ESP_LOGI("PIXDBG", "BGR565 SWAP:");
+    ESP_LOGI("PIXDBG", "R=%3u G=%3u B=%3u", r4, g4, b4);
+
+    ESP_LOGI("PIXDBG", "========================================");
+}
+
 
 void app_main(void)
 {
@@ -397,6 +460,7 @@ void app_main(void)
         if (send_bmp_requested && frame_ready && raw_frame) {
             // Save raw image
             if (raw_frame) {
+                debug_pixel_formats(raw_frame, img_width, img_height);
                 // save_bmp_rgb888("/sdcard/images/test.bmp",
                 //         raw_frame,
                 //         img_width,

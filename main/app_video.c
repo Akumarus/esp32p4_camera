@@ -113,7 +113,17 @@ int app_video_open(char *dev, video_fmt_t init_fmt)
     }
 
     ESP_LOGI(TAG, "width=%" PRIu32 " height=%" PRIu32, default_format.fmt.pix.width, default_format.fmt.pix.height);
+    ESP_LOGI(TAG, "pixelformat = %c%c%c%c",
+    (char)(default_format.fmt.pix.pixelformat & 0xFF),
+    (char)((default_format.fmt.pix.pixelformat >> 8) & 0xFF),
+    (char)((default_format.fmt.pix.pixelformat >> 16) & 0xFF),
+    (char)((default_format.fmt.pix.pixelformat >> 24) & 0xFF));
 
+    ESP_LOGI(TAG, "bytesperline = %" PRIu32,
+             default_format.fmt.pix.bytesperline);
+
+    ESP_LOGI(TAG, "sizeimage = %" PRIu32,
+             default_format.fmt.pix.sizeimage);
     app_camera_video.camera_buf_hes = default_format.fmt.pix.width;
     app_camera_video.camera_buf_ves = default_format.fmt.pix.height;
 
@@ -129,6 +139,116 @@ int app_video_open(char *dev, video_fmt_t init_fmt)
             ESP_LOGE(TAG, "failed to set format");
             goto exit_0;
         }
+    }
+
+
+    struct v4l2_control ctrl;
+
+    // =====================
+    // AUTO WHITE BALANCE OFF
+    // =====================
+
+    memset(&ctrl, 0, sizeof(ctrl));
+    ctrl.id = V4L2_CID_AUTO_WHITE_BALANCE;
+    ctrl.value = 2;
+
+    if (ioctl(fd, VIDIOC_S_CTRL, &ctrl) != 0) {
+        ESP_LOGW(TAG, "AWB disable failed");
+    } else {
+        ESP_LOGI(TAG, "AWB disabled");
+    }
+
+    // =====================
+    // AUTO EXPOSURE OFF
+    // =====================
+
+    memset(&ctrl, 0, sizeof(ctrl));
+    ctrl.id = V4L2_CID_EXPOSURE;
+    ctrl.value = 50;
+    // ctrl.value = V4L2_EXPOSURE_MANUAL;
+
+    if (ioctl(fd, VIDIOC_S_CTRL, &ctrl) != 0) {
+        ESP_LOGW(TAG, "AE disable failed");
+    } else {
+        ESP_LOGI(TAG, "AE disabled");
+    }
+
+    memset(&ctrl, 0, sizeof(ctrl));
+    ctrl.id = V4L2_CID_GAIN;
+    ctrl.value = 5;
+
+    if (ioctl(fd, VIDIOC_S_CTRL, &ctrl) != 0) {
+        ESP_LOGW(TAG, "cfgfgfgfgfgfgfg");
+    } else {
+        ESP_LOGI(TAG, "cggggggggggggggg");
+    }
+
+
+
+    // =====================
+    // CONTRAST
+    // =====================
+
+    memset(&ctrl, 0, sizeof(ctrl));
+    ctrl.id = V4L2_CID_CONTRAST;
+    ctrl.value = 48;
+
+    if (ioctl(fd, VIDIOC_S_CTRL, &ctrl) != 0) {
+        ESP_LOGW(TAG, "contrast set failed");
+    } else {
+        ESP_LOGI(TAG, "contrast set");
+    }
+
+    // =====================
+    // SATURATION
+    // =====================
+
+    memset(&ctrl, 0, sizeof(ctrl));
+    ctrl.id = V4L2_CID_SATURATION;
+    ctrl.value = 64;
+
+    if (ioctl(fd, VIDIOC_S_CTRL, &ctrl) != 0) {
+        ESP_LOGW(TAG, "saturation set failed");
+    } else {
+        ESP_LOGI(TAG, "saturation set");
+    }
+
+    // =====================
+    // SHARPNESS
+    // =====================
+
+    memset(&ctrl, 0, sizeof(ctrl));
+    ctrl.id = V4L2_CID_SHARPNESS;
+    ctrl.value = 32;
+
+    if (ioctl(fd, VIDIOC_S_CTRL, &ctrl) != 0) {
+        ESP_LOGW(TAG, "sharpness set failed");
+    } else {
+        ESP_LOGI(TAG, "sharpness set");
+    }
+
+
+
+
+
+    struct v4l2_format verify_format = {0};
+    verify_format.type = type;
+
+    if (ioctl(fd, VIDIOC_G_FMT, &verify_format) == 0) {
+
+        ESP_LOGI(TAG, "AFTER S_FMT:");
+
+        ESP_LOGI(TAG, "pixelformat = %c%c%c%c",
+            (char)(verify_format.fmt.pix.pixelformat & 0xFF),
+            (char)((verify_format.fmt.pix.pixelformat >> 8) & 0xFF),
+            (char)((verify_format.fmt.pix.pixelformat >> 16) & 0xFF),
+            (char)((verify_format.fmt.pix.pixelformat >> 24) & 0xFF));
+
+        ESP_LOGI(TAG, "bytesperline = %" PRIu32,
+                 verify_format.fmt.pix.bytesperline);
+
+        ESP_LOGI(TAG, "sizeimage = %" PRIu32,
+                 verify_format.fmt.pix.sizeimage);
     }
 
 #if CONFIG_EXAMPLE_ENABLE_CAM_SENSOR_PIC_VFLIP

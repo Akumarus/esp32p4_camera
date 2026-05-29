@@ -3,7 +3,7 @@ import serial
 import time
 import io
 
-PORT = '/dev/ttyACM1'
+PORT = '/dev/ttyACM0'
 BAUDRATE = 5000000
 
 ser = serial.Serial(PORT, BAUDRATE, timeout=5)
